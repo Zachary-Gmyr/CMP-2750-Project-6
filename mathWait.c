@@ -1,5 +1,8 @@
 // Project 6 - Zachary Gmyr
-// (description): 
+// CMP 2750
+// 5-4-24
+// (description): Call this program with a sequence of numbers and it will search for & return a pair that sums to '19'. This program makes use of fork() call & shared memory space.
+// ... for help/usage, use '-h' option
 
 #include <stdio.h>
 #include <stdlib.h>
