@@ -72,7 +72,7 @@ int main(int argc, char ** argv) {
 			fprintf(stderr,"ERROR: failed to allocate dynamic memory");
 			shmdt(pint);
 			shmctl(shmid,IPC_RMID,NULL);
-			exit(EXIT_FAILURE);
+			_exit(EXIT_FAILURE);
 		}
 		
 		// store args in dynamic array
@@ -84,40 +84,65 @@ int main(int argc, char ** argv) {
 		// default pair should be {-1,-1} if no sum found
 		int pair[2] = {-1,-1};
 
+		// search if sum of '19' exists, store in 'pair'
+		int foundSum = findSum(numSequence,seqSize,pair);
 
+		if (foundSum)
+			printf("CHILD: pair found...\n");
+		else
+			printf("CHILD: pair not found...\n");
 
+		// attach to shared memory & verify -200 -200
+		int child_shmid = shmget(SHMKEY,BUFF_SZ,0777);
+		if (child_shmid == -1) {
+			fprintf(stderr,"ERROR: shmget failed in child...");
+			shmdt(pint);
+			shmctl(shmid,IPC_RMID,NULL);
+			free(numSequence);
+			_exit(EXIT_FAILURE);
+		}
+		int *cint = (int *)(shmat(child_shmid,0,0));
+		
+		if (cint[0] != -200 || cint[1] != -200) {
+			fprintf(stderr,"ERROR: issue with creation of shared memory");
+			shmdt(pint);
+			shmctl(shmid,IPC_RMID,NULL);
+			free(numSequence);
+			_exit(EXIT_FAILURE);
+		}
+
+		// update shared memory with pair
+		// ... if no pair was found, default is {-1,-1}
+		cint[0] = pair[0];
+		cint[1] = pair[1];
+
+		// cleanup
 		free(numSequence);
+		shmdt(cint);
+
 		_exit(EXIT_SUCCESS);
 	}
 	else {
 		// parent code here
 		pid = wait(&status);
 		
-		//DEBUG
-		printf("PARENT: child exited with %d\n",status);
+		// if child failed then stop here
+		if (status != 0) {
+			fprintf(stderr,"PARENT: child encountered error");
+			exit(EXIT_FAILURE);
+		}
+
+		if (pint[0] == -200 && pint[1] == -200) {
+			printf("PARENT: shared memory holds -200 -200, error may have occured with child in updating shared memory.\n");
+		}
+		else if (pint[0] == -1 && pint[1] == -1) {
+			printf("PARENT: shared memroy holds -1 -1, no pair sum of '19' was found.\n");
+		}
+		else {
+			printf("PARENT: pair found by child: %d %d\n",pint[0],pint[1]);
+		}
 	}
 	shmdt(pint);
 	shmctl(shmid,IPC_RMID,NULL);
-
-	//DEBUG
-	printf("Ending...\n");
 }
 
-/* STEP 3:
- * - Parent should wait while child performs task...
- * - Child puts arguments & stores them in dynamic array
- * - Find one pair of numbers in this array that sums to '19'
- *     ... if no pair exists set default pair to '-1' '-1'
- * - Attach to shared memory region from before
- * - VALIDATE that shared memory was created properly by checking '-200' values
- *     ... exit in error if not true
- * - Copy pair of #'s to shared memory & detach, then terminate
- * - If no pair was found, write instead '-1' '-1'
- */
-
-/* STEP 4:
- * - Check shared memory space after child terminates
- * - If '-200' '-200' then error
- * - If '-1' '-1' then no pair was found
- * - If anything else then simply report the pair
- */
